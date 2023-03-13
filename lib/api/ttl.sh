@@ -44,6 +44,7 @@ function create_ttl() {
 	RELEASE=$1
 	TIME_DELTA=$2
 	SERVICE_ACCOUNT=$3
+	JOB_NAMESPACE=$4
 	cronjob_name="$RELEASE-ttl"
 	now=$(date --utc "+%s")
 	scheduled_time=$(date --utc --date="$TIME_DELTA" "+%s")
@@ -59,7 +60,7 @@ function create_ttl() {
         kind: CronJob
         metadata:
           name: $cronjob_name
-          namespace: $HELM_NAMESPACE
+          namespace: $JOB_NAMESPACE
         spec:
           schedule: '$schedule'
           jobTemplate:
@@ -70,7 +71,7 @@ function create_ttl() {
                     - name: release-ttl-terminator
                       image: alpine/helm:$HELM_VERSION
                       imagePullPolicy: IfNotPresent
-                      args: [ 'uninstall', '$RELEASE' ]
+                      args: [ 'uninstall', '$RELEASE', '-n', $HELM_NAMESPACE ]
                   containers:
                     - name: release-ttl-cleaner
                       image: bitnami/kubectl:$KUBECTL_VERSION
@@ -118,7 +119,7 @@ function release_ttl() {
 	ACTION="read"  # Work mode. Possible options are: 'read' | 'set' | 'unset'.
 	OUTPUT="text"
 	SERVICE_ACCOUNT="default"
-
+    JOB_NAMESPACE=$HELM_NAMESPACE
 	RELEASE=$1
 	shift
 	if [[ -z $RELEASE ]]; then
@@ -181,6 +182,10 @@ function release_ttl() {
 				SERVICE_ACCOUNT=`echo $1 | sed -e 's/^[^=]*=//g'`
 				shift
 				;;
+			(--job-namespace*)
+				JOB_NAMESPACE=`echo $1 | sed -e 's/^[^=]*=//g'`
+				shift
+				;;
 			(--help)
 				exit_with_help "$help_text"
 				;;
@@ -193,7 +198,7 @@ function release_ttl() {
 
 	case "$ACTION" in
 		(set)
-			create_ttl $RELEASE "$SET_DATE" "$SERVICE_ACCOUNT"
+			create_ttl $RELEASE "$SET_DATE" "$SERVICE_ACCOUNT" "$JOB_NAMESPACE"
 			;;
 		(read)
 			read_ttl $RELEASE
